@@ -1,2 +1,1 @@
 # Igla
-Training repository

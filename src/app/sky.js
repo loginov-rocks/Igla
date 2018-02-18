@@ -2,30 +2,39 @@
  * @see https://github.com/mrdoob/three.js/blob/master/examples/webgl_shaders_sky.html
  */
 
+import {DirectionalLight, DirectionalLightHelper, Group} from 'three';
 import Sky from 'three-sky';
 
-import {createGroup} from './gui';
+import {createGroup, getColorFromArray} from './gui';
+
+const distanceToSun = 400000;
+const distanceToHelper = 3;
 
 const calculateSunPosition = (azimuth, inclination) => {
-  const distance = 400000;
   const phi = 2 * Math.PI * (azimuth - 0.5);
   const theta = Math.PI * (inclination - 0.5);
 
   return {
-    x: distance * Math.cos(phi),
-    y: distance * Math.sin(phi) * Math.sin(theta),
-    z: distance * Math.sin(phi) * Math.cos(theta),
+    x: Math.cos(phi),
+    y: Math.sin(phi) * Math.sin(theta),
+    z: Math.sin(phi) * Math.cos(theta),
   };
 };
 
 const createSky = () => {
+  const directionalLight = new DirectionalLight();
+  const directionalLightHelper = new DirectionalLightHelper(directionalLight,
+      distanceToHelper);
   const sky = new Sky();
+
+  directionalLight.castShadow = true;
 
   sky.scale.setScalar(450000);
 
-  const guiController = {
+  const guiData = {
     azimuth: 0.25,
-    inclination: 0.49,
+    color: [255, 255, 255],
+    inclination: 0.25,
     luminance: 1,
     mieCoefficient: 0.005,
     mieDirectionalG: 0.8,
@@ -33,36 +42,51 @@ const createSky = () => {
     turbidity: 2,
   };
 
-  const guiUpdated = () => {
+  const guiDataChanged = () => {
     const {uniforms} = sky.material;
 
-    uniforms.luminance.value = guiController.luminance;
-    uniforms.mieCoefficient.value = guiController.mieCoefficient;
-    uniforms.mieDirectionalG.value = guiController.mieDirectionalG;
-    uniforms.rayleigh.value = guiController.rayleigh;
-    uniforms.turbidity.value = guiController.turbidity;
+    uniforms.luminance.value = guiData.luminance;
+    uniforms.mieCoefficient.value = guiData.mieCoefficient;
+    uniforms.mieDirectionalG.value = guiData.mieDirectionalG;
+    uniforms.rayleigh.value = guiData.rayleigh;
+    uniforms.turbidity.value = guiData.turbidity;
 
-    const {x, y, z} = calculateSunPosition(guiController.azimuth,
-        guiController.inclination);
+    directionalLight.color = getColorFromArray(guiData.color);
 
-    uniforms.sunPosition.value.x = x;
-    uniforms.sunPosition.value.y = y;
-    uniforms.sunPosition.value.z = z;
+    const {x, y, z} = calculateSunPosition(guiData.azimuth,
+        guiData.inclination);
+
+    uniforms.sunPosition.value.x = distanceToSun * x;
+    uniforms.sunPosition.value.y = distanceToSun * y;
+    uniforms.sunPosition.value.z = distanceToSun * z;
+
+    directionalLight.position.x = distanceToHelper * x;
+    directionalLight.position.y = distanceToHelper * y;
+    directionalLight.position.z = distanceToHelper * z;
+
+    directionalLightHelper.update();
   };
 
   const gui = createGroup('Sky');
-  gui.add(guiController, 'azimuth', 0, 1, 0.0001).onChange(guiUpdated);
-  gui.add(guiController, 'inclination', 0, 1, 0.0001).onChange(guiUpdated);
-  gui.add(guiController, 'luminance', 0.0, 2).onChange(guiUpdated);
-  gui.add(guiController, 'mieCoefficient', 0.0, 0.1, 0.001).
-      onChange(guiUpdated);
-  gui.add(guiController, 'mieDirectionalG', 0.0, 1, 0.001).onChange(guiUpdated);
-  gui.add(guiController, 'rayleigh', 0.0, 4, 0.001).onChange(guiUpdated);
-  gui.add(guiController, 'turbidity', 1.0, 20.0, 0.1).onChange(guiUpdated);
+  gui.add(guiData, 'azimuth', 0, 1, 0.0001).onChange(guiDataChanged);
+  gui.addColor(guiData, 'color').onChange(guiDataChanged);
+  gui.add(guiData, 'inclination', 0, 1, 0.0001).onChange(guiDataChanged);
+  gui.add(directionalLight, 'intensity', 0, 1, 0.1);
+  gui.add(guiData, 'luminance', 0, 2).onChange(guiDataChanged);
+  gui.add(guiData, 'mieCoefficient', 0, 0.1, 0.001).onChange(guiDataChanged);
+  gui.add(guiData, 'mieDirectionalG', 0, 1, 0.001).onChange(guiDataChanged);
+  gui.add(guiData, 'rayleigh', 0, 4, 0.001).onChange(guiDataChanged);
+  gui.add(guiData, 'turbidity', 1, 20, 0.1).onChange(guiDataChanged);
 
-  guiUpdated();
+  guiDataChanged();
 
-  return sky;
+  const group = new Group();
+
+  group.add(directionalLight);
+  group.add(directionalLightHelper);
+  group.add(sky);
+
+  return group;
 };
 
 export {
